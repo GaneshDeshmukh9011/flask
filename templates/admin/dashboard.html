@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block title %}Admin Panel{% endblock %}
+{% block content %}
+  <h2>Admin Dashboard</h2>
+
+  <h4>Users</h4>
+  <table class="table table-bordered">
+    <thead>
+      <tr><th>ID</th><th>Username</th><th>Email</th><th>Admin</th><th>Actions</th></tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+        <tr>
+          <td>{{ u.id }}</td>
+          <td>{{ u.username }}</td>
+          <td>{{ u.email }}</td>
+          <td>{{ 'Yes' if u.is_admin else 'No' }}</td>
+          <td>
+            {% if not u.is_admin %}
+              <form method="post" action="{{ url_for('admin_make_admin', user_id=u.id) }}" style="display:inline-block;">
+                <button class="btn btn-sm btn-warning">Make Admin</button>
+              </form>
+            {% endif %}
+            <form method="post" action="{{ url_for('admin_delete_user', user_id=u.id) }}" style="display:inline-block;">
+              <button class="btn btn-sm btn-danger">Delete</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h4 class="mt-4">Posts</h4>
+  <table class="table table-bordered">
+    <thead>
+      <tr><th>ID</th><th>Title</th><th>Author</th><th>Actions</th></tr>
+    </thead>
+    <tbody>
+      {% for p in posts %}
+        <tr>
+          <td>{{ p.id }}</td>
+          <td>{{ p.title }}</td>
+          <td>{{ p.author.username }}</td>
+          <td>
+            <form method="post" action="{{ url_for('admin_delete_post', post_id=p.id) }}" style="display:inline-block;">
+              <button class="btn btn-sm btn-danger">Delete</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

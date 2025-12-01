@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}Home - Flask Blog{% endblock %}
+{% block content %}
+  <h1>Recent Posts</h1>
+  {% if posts %}
+    <div class="row">
+      {% for p in posts %}
+        <div class="col-md-6">
+          <div class="card mb-3">
+            <div class="card-body">
+              <h5 class="card-title">{{ p.title }}</h5>
+              <p class="card-text">{{ p.content[:250] }}{% if p.content|length > 250 %}...{% endif %}</p>
+              <p class="card-text"><small class="text-muted">By {{ p.author.username }} on {{ p.date_posted.strftime('%Y-%m-%d') }}</small></p>
+              <a href="{{ url_for('single_post', post_id=p.id) }}" class="btn btn-primary">Read</a>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p>No posts yet.</p>
+  {% endif %}
+{% endblock %}
