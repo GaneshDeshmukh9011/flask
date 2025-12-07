@@ -14,7 +14,6 @@ jobs:
       CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
 
     steps:
-
     - name: Checkout repository
       uses: actions/checkout@v4
 
@@ -27,40 +26,53 @@ jobs:
 
     - name: Get AWS Account ID
       id: aws
-      run: echo "account_id=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_OUTPUT
+      run: echo "ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_ENV
+
+    - name: Ensure ECR repo exists
+      run: |
+        aws ecr describe-repositories --repository-names "${{ env.ECR_REPO }}" --region "${{ env.AWS_REGION }}" \
+          || aws ecr create-repository --repository-name "${{ env.ECR_REPO }}" --region "${{ env.AWS_REGION }}"
 
     - name: Login to Amazon ECR
       run: |
-        aws ecr get-login-password --region $AWS_REGION \
-        | docker login --username AWS --password-stdin ${{ steps.aws.outputs.account_id }}.dkr.ecr.${AWS_REGION}.amazonaws.com
+        echo "Logging in to ECR..."
+        aws ecr get-login-password --region "${{ env.AWS_REGION }}" \
+          | docker login --username AWS --password-stdin ${ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
 
     - name: Build & Push Docker Image
+      id: image_step
       run: |
-        IMAGE="${{ steps.aws.outputs.account_id }}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}"
+        IMAGE="${ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}"
         TAG=${GITHUB_SHA::8}
-    
-        docker build -t $IMAGE:$TAG .
+
+        echo "Building Docker image: $IMAGE:$TAG"
+        docker build . -t $IMAGE:$TAG
+
+        echo "Tagging latest"
         docker tag $IMAGE:$TAG $IMAGE:latest
-    
+
+        echo "Pushing $IMAGE:$TAG"
         docker push $IMAGE:$TAG
         docker push $IMAGE:latest
-    
-        echo "image=$IMAGE:$TAG" >> $GITHUB_OUTPUT
-        id: image_step
 
+        echo "image=$IMAGE:$TAG" >> $GITHUB_OUTPUT
 
     - name: Update kubeconfig
       run: |
-        aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
+        aws eks update-kubeconfig --region "${{ env.AWS_REGION }}" --name "${{ env.CLUSTER_NAME }}"
 
     - name: Deploy to EKS
       run: |
         IMAGE="${{ steps.image_step.outputs.image }}"
-
-        if kubectl get deployment flask-blog > /dev/null 2>&1; then
+        if kubectl get deployment flask-blog >/dev/null 2>&1; then
           echo "Updating existing deployment..."
           kubectl set image deployment/flask-blog flask-blog=$IMAGE --record
         else
-          echo "Creating new deployment..."
+          echo "Creating new deployment from k8s/deployment.yaml..."
           sed "s|REPLACE_ME_IMAGE|$IMAGE|g" k8s/deployment.yaml | kubectl apply -f -
         fi
+
+    - name: Verify Deployment
+      run: |
+        kubectl get pods -l app=flask-blog -o wide
+        kubectl get svc flask-blog-service -o wide || true
