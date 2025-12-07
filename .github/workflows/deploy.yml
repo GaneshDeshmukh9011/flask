@@ -23,6 +23,9 @@ jobs:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ secrets.AWS_REGION }}
+    - name: Debug AWS Identity
+      run: aws sts get-caller-identity
+
 
     - name: Get AWS Account ID
       id: aws
