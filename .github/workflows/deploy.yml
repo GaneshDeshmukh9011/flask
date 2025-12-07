@@ -38,16 +38,16 @@ jobs:
       run: |
         IMAGE="${{ steps.aws.outputs.account_id }}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}"
         TAG=${GITHUB_SHA::8}
-
+    
         docker build -t $IMAGE:$TAG .
         docker tag $IMAGE:$TAG $IMAGE:latest
-
+    
         docker push $IMAGE:$TAG
         docker push $IMAGE:latest
-
+    
         echo "image=$IMAGE:$TAG" >> $GITHUB_OUTPUT
+        id: image_step
 
-      id: image_step
 
     - name: Update kubeconfig
       run: |
