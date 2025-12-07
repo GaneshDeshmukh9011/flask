@@ -1,0 +1,66 @@
+name: Build & Deploy to EKS
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      ECR_REPO: ${{ secrets.ECR_REPOSITORY }}
+      CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
+
+    steps:
+
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+
+    - name: Get AWS Account ID
+      id: aws
+      run: echo "account_id=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_OUTPUT
+
+    - name: Login to Amazon ECR
+      run: |
+        aws ecr get-login-password --region $AWS_REGION \
+        | docker login --username AWS --password-stdin ${{ steps.aws.outputs.account_id }}.dkr.ecr.${AWS_REGION}.amazonaws.com
+
+    - name: Build & Push Docker Image
+      run: |
+        IMAGE="${{ steps.aws.outputs.account_id }}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}"
+        TAG=${GITHUB_SHA::8}
+
+        docker build -t $IMAGE:$TAG .
+        docker tag $IMAGE:$TAG $IMAGE:latest
+
+        docker push $IMAGE:$TAG
+        docker push $IMAGE:latest
+
+        echo "image=$IMAGE:$TAG" >> $GITHUB_OUTPUT
+
+      id: image_step
+
+    - name: Update kubeconfig
+      run: |
+        aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
+
+    - name: Deploy to EKS
+      run: |
+        IMAGE="${{ steps.image_step.outputs.image }}"
+
+        if kubectl get deployment flask-blog > /dev/null 2>&1; then
+          echo "Updating existing deployment..."
+          kubectl set image deployment/flask-blog flask-blog=$IMAGE --record
+        else
+          echo "Creating new deployment..."
+          sed "s|REPLACE_ME_IMAGE|$IMAGE|g" k8s/deployment.yaml | kubectl apply -f -
+        fi

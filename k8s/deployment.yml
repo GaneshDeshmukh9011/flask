@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flask-blog
+  labels:
+    app: flask-blog
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: flask-blog
+  template:
+    metadata:
+      labels:
+        app: flask-blog
+    spec:
+      containers:
+      - name: flask-blog
+        image: REPLACE_ME_IMAGE   # GitHub pipeline येथे नवीन image टाकेल
+        ports:
+        - containerPort: 5000
+        env:
+        - name: FLASK_ENV
+          value: production
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flask-blog-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: flask-blog
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 5000
